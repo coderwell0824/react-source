@@ -5,6 +5,7 @@ import { UpdateQueue, createUpdate, createUpdateQueue, enqueueUpdate } from "./u
 import { ReactElementType } from "shared/ReactTypes";
 import { scheduleUpdateFiber } from "./workLoop";
 
+//不依赖数组环境
 export function createContainer(container: Container) {
 
   const hostRootFiber = new FiberNode(HostRoot, {}, null);
@@ -15,7 +16,6 @@ export function createContainer(container: Container) {
 }
 
 export function updateContainer(element: ReactElementType | null, root: FiberRootNode) {
-
   const hostRootFiber = root.current;
 
   const update = createUpdate<ReactElementType | null>(element);

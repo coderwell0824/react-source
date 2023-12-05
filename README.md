@@ -92,6 +92,105 @@ useState的dispatch方法
 
 需要考虑的事情:
 更新可能发生于任意组件, 而更新流程时从根节点递归的
-需要一个统一的根节点保存通用信息  --这个就是HostRootFiber
+需要一个统一的根节点保存通用信息 --这个就是HostRootFiber
 
 ---
+
+第五课 初探mount流程
+更新流程的目的:
+生成wip fiberNode树
+标记副作用flags
+
+更新流程的步骤:
+递: beginWork
+归: completeWork
+
+beginWork
+对于如下结构的ReactElement:
+<A>
+<B/>
+</A>
+当进入A的beginWork时, 通过对比B current fiberNode与B reactElement生成B对应Wip fiberNode
+在此过程中最多会标记两类与结构变化的相关的flags:
+Placement
+插入: a ->ab 移动: abc -> bca
+ChildDetetion:
+删除: ul > li _ 3 ul> li _ 1
+不包含与属性变化的相关的flag:
+Update
+<img title="鸡" /> -> <img title="鸭" />
+
+实现与Host相关节点的beginWork
+首先, 为开发环境增加**DEV**标识, 方便Dev包打印更多信息:
+pnpm i
+
+HostRoot的beginWork工作流程: 1.计算状态的最新值2.创建子fiberNode
+
+HostComponent的beginWork工作流程: 1.创建子fiberNode
+HostText没有beginWork工作流程(因为他没有子节点), 递阶段遍历到HostText阶段时开始归阶段
+
+beginWork性能优化策略
+考虑如下结构的reactElement:
+
+<div>
+   <p> 练习时长 </p>
+   <span> 两年半 </span>
+</div>
+理论上mount流程完毕后包含的flags:
+   两年半 Placement
+   span Placement
+   练习时长 Placement
+   p Placement
+   div Placement
+
+相比于执行5次Placement, 我们可以构建好[离屏DOM树]后, 对div执行1次Placement操作
+
+completeWork需要解决的问题: 1.对于Host类型的fiberNode: 构建离屏DOM树2.标记Update flag(TODO)
+
+completeWork性能优化策略
+flags分布在不同的fiberNode中, 如何快速找到他们?
+就是利用completeWork向上遍历(归)的流程, 将子fiberNode的flags冒泡到父fiberNode中
+
+---
+
+第六课 初探ReactDOM
+
+React内部3个阶段:
+
+1.  schedule阶段
+2.  render阶段(beginWork和completeWork)
+3.  commit阶段(commitWork)
+
+commit阶段的3个子阶段:
+
+1.  beforeMutation阶段
+2.  mutation阶段
+3.  layout阶段
+
+mutation是突变的意思, 突变是一种操作UI的方式, 它是指将一个属性直接从一个值变为另一个值,DOM API的工作方式就是突变,
+比如说我们可以比如说我们可以将一个dom节点的style下的color从红色直接变为绿色，这就是突变.
+那么在突变之前的阶段就叫做before mutation，也就是突变之前的阶段，那突变之后的阶段其实按理说应该叫after mutation，
+但是因为像我们的useLayoutEffect这么一个hooks就是在after mutation阶段执行的，所以说这个阶段被称为layout阶段。
+
+当前commit阶段要执行的任务
+
+1.  fiber树的切换
+2.  执行Placement对应操作
+
+需要注意的问题是考虑如下JSX. 如果span含有flag, 该如何找到它:
+<App>
+
+   <div>
+      <span>22</span>
+   </div>
+</App>
+
+打包ReactDOM
+需要注意的点:
+
+1.  兼容原版React的导出
+2.  处理hostConfig的导出
+
+---
+
+pnpm link --global
