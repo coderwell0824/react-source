@@ -72,6 +72,7 @@ const commitPlacement = (finishedWork: FiberNode) => {
   //首先我们需要知道它的父级节点, 对应浏览器来说就是父级的DOM节点, 我们还需要知道finishedWork如何找到对应的DOM节点
   //这样能将这个DOM节点插入对应的父节点下
 
+  console.log(finishedWork, "finishedWork")
 
   if (__DEV__) {
     console.warn("执行Placement操作", finishedWork)

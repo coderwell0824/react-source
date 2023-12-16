@@ -14,12 +14,16 @@ export const createTextInstance = (content: string) => {
   return document.createTextNode(content);
 }
 
-export const appendInitalChild = (parent: Instance | Container, child: Instance) => {
+export const appendInitalChild = (parent: Instance | Container, child: Element) => {
 
   parent.appendChild(child);
 }
 
 //
-export const appendChildToContainer = appendInitalChild
+export const appendChildToContainer = (parent: Container, child: Element) => {
+
+  parent.appendChild(child);
+}
+
 
 

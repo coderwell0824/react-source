@@ -1,9 +1,9 @@
 export type Flags = number;
 
-export const NoFlags = 0b000000000001;
-export const Placement = 0b000000000010;
-export const Update = 0b000000000100;
-export const ChildDeletion = 0b000000001000;
+export const NoFlags = 0b000000000000;
+export const Placement = 0b0000000001;
+export const Update = 0b000000000010;
+export const ChildDeletion = 0b000000000100;
 
 export const MutationMark = Placement | Update | ChildDeletion //代表mutation阶段需要执行的操作
 

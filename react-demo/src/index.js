@@ -11,15 +11,23 @@ import ReactDOM from 'react-dom';
 //   </React.StrictMode>
 // );
 
-const jsx = (
-  <div>
-    <span>big-react</span>
-  </div>
-)
+// const jsx = (
+//   <span>big-react</span>
+// )
+
+function App () {
+  return (
+    <div>
+      <span>big-react</span>
+    </div>
+  )
+}
+
+
 const root = document.getElementById('root');
 
 
-ReactDOM.createRoot(root).render(jsx);
+ReactDOM.createRoot(root).render(<App />);
 
 console.log(React);
 console.log(jsx);

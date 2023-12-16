@@ -190,7 +190,77 @@ mutation是突变的意思, 突变是一种操作UI的方式, 它是指将一个
 
 1.  兼容原版React的导出
 2.  处理hostConfig的导出
+3.  pnpm link --global
 
 ---
 
-pnpm link --global
+第七课 初探FC与实现第二种调试方式
+FunctionComponent需要考虑的问题:
+如何支持FC?
+如何组织Hooks
+
+如何支持FC?
+FC的工作同样根植于beginWork, completeWork
+
+第二种调试方式
+采用Vite的实时调试, 他的好处是实时看到源码运行效果
+
+---
+
+第八课 实现useState
+hook脱离FC上下文, 仅仅是普通函数, 如何让他拥有感知上下文环境的能力?
+比如说:
+hook如何知道在另一个hook的上下文环境内执行
+
+function App(){
+
+useEffect(()=>{
+useState(0)
+})
+}
+hook怎么知道当前是mount还是update
+解决方案: 在不同上下文中调用的hook不是同一个函数
+在mount和update不同的阶段时, 创建不同的函数上下文环境, 在reconciler中实现, 并在数据内部共享当前使用的hooks集合, 通过React使用
+
+实现内部数据共享层时的注意事项:
+以浏览器为例, Reconciler + hostConfig = ReactDOM
+增加内部数据共享层, 意味着Reconciler与React产生关联, 进而意味着ReactDOM与React产生关联
+如果两个包产生关联, 在打包时需要考虑: 两者的代码是打包在一起还是分开?
+如果打包在一起, 意味着打包后的ReactDOM中会包含React的代码, 那么ReactDOM中会包含一个内部数据共享层, React中也会包含一个内部数据共享层, 这两者不是同一个内部数据共享层
+
+而我们希望两者共享数据, 所以不希望ReactDOM中会包含React的代码
+
+hook如何知道自身数据保存在哪里
+可以记录当前正在render的FC对应fiberNode, 在fiberNode中保存hook数据
+
+实现Hooks的数据结构
+fiberNode中可用的字段:
+
+1. memoizedState
+2. updateQueue
+
+对于FC对应的fiberNode, 存在两层数据:
+
+1. fiberNode.memoizedState中存储对应Hooks链表(每次调用是调用顺序不能不变的)
+2. 链表中每个Hook对应自身的数据
+
+实现useState包括两方面工作:
+
+1. 实现mount时useState的实现
+2. 实现dispatch方法, 并接入现有更新流程内
+
+//commit阶段开始时为FiberRootNode
+
+---
+
+第九课 ReactElement的测试用例
+本节课我们将实现第三种调试方法 --- 用例调试, 包括三部分内容:
+
+1. 实现一个测试工具test-utils
+2. 实现测试环境
+3. 实现ReactElement用例
+
+与测试用例相关的代码都来自React仓库, 可以先把React仓库下载下来:
+git clone
+
+实现test-utils

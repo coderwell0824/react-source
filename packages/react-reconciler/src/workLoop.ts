@@ -58,7 +58,11 @@ function renderRoot(root: FiberRootNode) {
 }
 
 function commitRoot(root: FiberRootNode) {  //root为根节点
+
+
   const finishedWork = root.finishedWork; //获取finishedWork
+
+  console.log(finishedWork, "commitRoot")
 
   if (finishedWork === null) {  //如果finishedWork为null时, 该commit阶段是不存在的
     return
@@ -69,7 +73,7 @@ function commitRoot(root: FiberRootNode) {  //root为根节点
   }
 
   //执行重置操作, 已经不需要了, finishedWork已经存储在变量中
-  root.finishedWork = null;
+  // root.finishedWork = null;
 
   //判断是否存在3个子阶段需要执行的操作
   //需要判断两项: root本身下的flags和subtreeFlags

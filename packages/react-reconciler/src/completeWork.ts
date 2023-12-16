@@ -1,6 +1,6 @@
 import { Container, appendInitalChild, createInstance, createTextInstance } from "hostConfig";
 import { FiberNode } from "./fiber";
-import { HostComponent, HostRoot, HostText } from "./workTags";
+import { FunctionComponent, HostComponent, HostRoot, HostText } from "./workTags";
 import { NoFlags } from "./fiberFlags";
 
 //递归阶段中的归阶段
@@ -34,6 +34,11 @@ export const completeWork = (wip: FiberNode) => {
     case HostRoot:
       bubbleProperties(wip);
       return null;
+
+    case FunctionComponent:
+      bubbleProperties(wip);
+      return null;
+
     default:
       if (__DEV__) {
         console.error("未实现的completeWork情况")
