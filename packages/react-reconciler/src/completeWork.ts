@@ -1,7 +1,15 @@
 import { Container, appendInitalChild, createInstance, createTextInstance } from "hostConfig";
 import { FiberNode } from "./fiber";
 import { FunctionComponent, HostComponent, HostRoot, HostText } from "./workTags";
-import { NoFlags } from "./fiberFlags";
+import { NoFlags, Update } from "./fiberFlags";
+import { updateFiberProps } from "react-dom/src/SyntheticEvent";
+
+//markUpdate 标记更新
+function markUpdate(fiber: FiberNode) {
+  fiber.flags |= Update
+}
+
+
 
 //递归阶段中的归阶段
 export const completeWork = (wip: FiberNode) => {
@@ -11,7 +19,10 @@ export const completeWork = (wip: FiberNode) => {
 
   switch (wip.tag) {
     case HostComponent:
-      if (current !== null && wip.stateNode) {  //update
+      if (current !== null && wip.stateNode) {  //update阶段
+        //判断props是否变化, 变化了打上Update Flag
+        //FiberNode.updateQueue=[className, "aaa", title,"xxxx"] n为key, n+1为value
+        updateFiberProps(wip.stateNode, newProps)  //更新fiber上的props
       } else {
         //构建离屏的DOM树步骤: 
         //1. 构建DOM树  
@@ -22,7 +33,14 @@ export const completeWork = (wip: FiberNode) => {
       bubbleProperties(wip);
       return null;
     case HostText:
-      if (current !== null && wip.stateNode) {  //update
+      if (current !== null && wip.stateNode) {  //update阶段
+        const oldText = current.memoizedProps.content;  //获取更新之前的text
+        const newText = newProps.content; //获取更新之后的text
+
+        if (oldText !== newText) { //oldText不等于newText的情况
+          markUpdate(wip)
+        }
+
       } else {
         //构建离屏的DOM树步骤: 
         //1. 构建DOM树  

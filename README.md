@@ -264,3 +264,101 @@ fiberNode中可用的字段:
 git clone
 
 实现test-utils
+这是用于测试的工具集, 来源自ReactTestUtils.js, 特点是ReactDOM作为宿主环境
+
+实现测试环境
+
+pnpm i -D -w jest jest-config jest-environment-jsdom
+
+配置文件见jest.config.js
+
+实现ReactElement用例
+来源自ReactElement-test.js, 直接复制下面的代码到同名文件:
+xxx
+
+为jest增加jsx解析能力, 安装babel:
+pnpm i -D -w @babel/core @babel/preset-env @babel/plugin-transform-react-jsx
+
+新增babel.config.js
+
+---
+
+第10课 初探update流程
+update流程与mount流程的区别:
+
+对于beginWork:
+
+1. 需要处理ChildDeletion的情况
+2. 需要处理节点移动的情况(abc -> bca)
+
+对于complateWork:
+
+1. 需要处理HostText内容更新的情况
+2. 需要处理HostComponent属性变化的情况
+
+对于commitWork:
+
+1. 对于ChildDeletion需要遍历被删除的子树
+
+对于useState:
+实现相对于mountState的updateState
+
+beginWork流程
+本节课仅处理单一节点, 所以省去了[节点移动]的情况, 我们需要处理:
+
+1. singleElement
+2. singleTextNode
+
+处理流程为:
+
+1. 比较是否可以复用current fiber
+   a. 比较key, 如果key不同, 不能复用
+   b. 比较type, 如果type不同, 不能复用
+   c. 如果key和type都相同, 则可复用
+
+2. 不能复用, 则创建新的(同mount流程), 可以复用则复用旧的
+
+注意: 对于同一个fiberNode, 即使反复更新, curent, wip这两个fiberNode会重复使用
+
+completeWork流程
+主要处理[标记Update]的情况, 本节课我们处理HostText内容更新的情况
+
+commitWork流程
+对于标记ChildDeletion的子树, 由于子树中:
+
+1. 对于FC, 需要处理useEffect unmount执行, 解绑ref
+2. 对于HostComponent, 需要解绑ref
+3. 对于子树的[根HostComponent], 需要移除DOM
+
+所以需要实现[遍历ChildDeletion子树]的流程
+
+对于useState需要实现:
+
+1. 针对update的dispatcher
+2. 实现对标mountWorkInProgressHook的updateWorkInProgressHook
+3. 实现updateState中计算新state的逻辑
+
+其中updateWorkInProgressHook的实现需要考虑的问题:
+
+1. hook数据从哪来? ->currentHook
+2. 交互阶段触发的更新
+3. render阶段触发的更新
+
+---
+
+第11课 实现事件系统
+
+事件系统本质上根植于浏览器事件模型, 所以它隶属于ReactDOM, 在实现时要做到对Reconciler 零侵入
+实现事件系统需要考虑:
+
+1.  模拟实现浏览器事件捕获, 冒泡流程
+2.  实现合成事件对象
+3.  方便后续扩展
+
+实现ReactDOM与Reconciler对接
+将事件回调保存在DOM中, 通过以下两个时机对接:
+
+1. 创建DOM时
+2. 更新属性时
+
+模拟实现浏览器事件流程
