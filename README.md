@@ -362,3 +362,91 @@ commitWork流程
 2. 更新属性时
 
 模拟实现浏览器事件流程
+
+---
+
+第12课 实现Diff算法
+
+1. 单节点Diff算法
+   当前仅实现了单一节点的增删操作, 即单节点Diff算法, 下节课实现多节点的Diff算法
+   对于reconcileSingElement的改动
+   当前支持的情况:
+   A1 -> B1
+   A1 -> A2
+
+需要支持的情况:
+ABC -> A
+[单/多节点]是更新后是单/多节点
+更细致的, 我们需要区分4种情况:
+
+1. key相同, type相同 --> 复用当前节点
+   例如: A1B2C3 -> A1
+
+2. key相同, type不同 --> 不存在任何复用的可能性
+   例如: A1B2C3 -> B1
+
+3. key不同, type相同 --> 当前节点不能复用
+4. key不同, type不同 --> 当前节点不能复用
+
+对于reconcileSingleTextNode的改动
+类似reconcileSingElement
+
+对于同级多节点Diff的支持
+单节点需要支持的情况:
+
+1. 插入Placement
+2. 删除ChildDeletion
+
+多节点需要支持的情况:
+
+1. 插入Placement
+2. 删除ChildDeletion
+3. 移动Placement
+
+整体流程分为4步:
+
+1. 将current中所有同级fiber保存在Map中
+2. 遍历newChild数组, 对于每个遍历到的element, 存在两种情况:
+   a. 在Map中存在对应currentFiber, 且可以复用
+   b. 在Map中不存在对应curentFiber, 或不能复用
+3. 判断是插入还是移动
+4. 最后Map中剩下的都是标记删除
+
+步骤2: 是否复用详解
+首先, 根据key从Map中获取currentFiber, 如果不存在currentFiber, 则没有复用的可能
+接下来, 分情况谈论:
+
+1.  element是HostText, currentFiber是么?
+2.  element是其他ReactElement, currentFiber是么?
+3.  TODO element是数组或Fragment, currentFiber是么?
+
+步骤3: 插入/移动判断详解
+
+移动具体是指向右移动
+移动的判断依据: element的index与[element对应currentFiber]index的比较
+A1B2C3 -> B2C3A1
+0 1 2 -> 0 1 2
+当遍历element时, [当前遍历到的element]一定是[所有已遍历的element]中最靠右的那个
+
+所以只需要记录最后一个可复用fiber在current中的index(lastPlacedIndex),在接下来的遍历中:
+
+1.  如果接下来遍历到的可复用fiber的index < lastPlacedIndex, 则标记Placement
+2.  否则, 不标记
+
+移动操作的执行
+Placement同时对应:
+
+1. 移动
+2. 插入操作
+
+对于插入操作, 之前对应DOM方法是parentNode.appendChild, 现在为了实现移动操作, 需要支持parent.insertBefore
+
+parent.insertBefore需要找到目标兄弟Host节点, 要考虑两个因素:
+
+1. 可能并不是目标fiber的直接兄弟节点
+   组件之间存在嵌套关系
+2. 不稳定的Host节点不能作为[目标兄弟Host节点]
+
+不足:
+
+1.  不支持数组与Fragement

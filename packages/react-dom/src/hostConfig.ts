@@ -62,5 +62,10 @@ export function commitTextUpdate(textInstance: TextInstance, content: string) {
   textInstance.textContent = content;
 }
 
+//插入子节点到容器中
+export function insertChildToContainer(child: Instance, container: Container, beforeElement: Instance) {
+  container.insertBefore(child, beforeElement);
+}
+
 
 

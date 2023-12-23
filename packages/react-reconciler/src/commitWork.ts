@@ -1,4 +1,4 @@
-import { Container, appendChildToContainer, commitUpdate, removeChild } from "hostConfig";
+import { Container, Instance, appendChildToContainer, commitUpdate, insertChildToContainer, removeChild } from "hostConfig";
 import { FiberNode, FiberRootNode } from "./fiber";
 import { ChildDeletion, MutationMark, NoFlags, Placement, Update } from "./fiberFlags";
 import { FunctionComponent, HostComponent, HostRoot, HostText } from "./workTags";
@@ -160,16 +160,20 @@ const commitPlacement = (finishedWork: FiberNode) => {
   if (__DEV__) {
     console.warn("执行Placement操作", finishedWork)
   }
-  //第一步: 获取父级的这个原生数组环境对应的节点
+  //1. 获取父级的这个原生数组环境对应的节点
   const hostParent = getHostParent(finishedWork);
 
-  //第二步: 找到finishedWork对应的DOM节点, 并将这个DOM插入到parent中
+  //寻找hostSibiling
+  const sibling = getHostSibling(finishedWork);
+
+
+  //2. 找到finishedWork对应的DOM节点, 并将这个DOM插入到parent中
   if (hostParent != null) {
-    appendPlacementNodeIntoContainer(finishedWork, hostParent)
+    insertOrAppendPlacementNodeIntoContainer(finishedWork, hostParent, sibling)
   }
 }
 
-function getHostParent(fiber: FiberNode) {
+function getHostParent(fiber: FiberNode): Container | null {
   let parent = fiber.return;
 
   //如果parent存在
@@ -185,13 +189,61 @@ function getHostParent(fiber: FiberNode) {
 
     if (parentTag === HostRoot) {
       //对于hostRoot来说, container对应的是原生数组环境的节点
-      return (parent.stateNode as FiberRootNode).container
+      return (parent.stateNode as FiberRootNode).container as Container;
     }
 
     parent = parent.return;
+  }
 
-    if (__DEV__) {
-      console.warn("未找到host parent")
+  if (__DEV__) {
+    console.warn("未找到host parent")
+  }
+  return null
+}
+
+//获取兄弟节点
+function getHostSibling(fiber: FiberNode) {
+
+  let node: FiberNode = fiber;
+
+  findSibling: while (true) {
+
+    //向上遍历寻找
+    while (node.sibling === null) {
+      const parent = node.return;
+
+      //没有找到兄弟节点
+      if (parent === null || parent.tag === HostComponent || parent.tag === HostRoot) {
+        return null
+      }
+      node = parent
+    }
+
+
+    node.sibling.return = node.return;
+    node = node.sibling;
+
+    //不等于HostText和HostComponent
+    while (node.tag !== HostText && node.tag !== HostComponent) {
+      //向下遍历, 寻找子孙节点
+
+      //该节点为不稳定的节点
+      if ((node.flags & Placement) !== NoFlags) {
+        continue findSibling;
+      }
+
+      if (node.child === null) {
+        continue findSibling
+      } else {
+        //向下遍历
+        node.child.return = node;
+        node = node.child
+      }
+    }
+
+    //找到了目标节点
+    if ((node.flags & Placement) === NoFlags) {
+      return node.stateNode;
     }
   }
 }
@@ -201,33 +253,30 @@ function getHostParent(fiber: FiberNode) {
   将这一层节点以及它的兄弟节点都执行对应的操作
 */
 
-function appendPlacementNodeIntoContainer(finishedWork: FiberNode, hostParent: Container) {
+function insertOrAppendPlacementNodeIntoContainer(finishedWork: FiberNode, hostParent: Container, beforeElement?: Instance) {
 
   //因为传进来的finishedWork不一定是host类型的fiber节点, 所以需要向下遍历通过传进来的这个fiber找到它对应的数组环境
 
   //判断tag是否等于HostComponent和HostText
   if (finishedWork.tag == HostComponent || finishedWork.tag == HostText) {
-    appendChildToContainer(hostParent, finishedWork.stateNode);
+    if (beforeElement) {
+      insertChildToContainer(finishedWork.stateNode, hostParent, beforeElement);
+    } else {
+      appendChildToContainer(hostParent, finishedWork.stateNode);
+    }
     return
   }
 
   const child = finishedWork.child;
   if (child != null) {
-    appendPlacementNodeIntoContainer(child, hostParent)
+    insertOrAppendPlacementNodeIntoContainer(child, hostParent)
 
     let sibling = child.sibling;
     while (sibling != null) {
-      appendPlacementNodeIntoContainer(sibling, hostParent);
-
+      insertOrAppendPlacementNodeIntoContainer(sibling, hostParent);
       sibling = sibling.sibling;
-
-
     }
-
-
   }
-
-
 }
 
 
