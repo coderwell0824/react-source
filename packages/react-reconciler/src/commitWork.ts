@@ -75,25 +75,47 @@ const commitMutationEffectsOnFiber = (finishedWork: FiberNode) => {
   }
 }
 
+//记录下Host节点下需要被删除的节点
+function recordHostChildrenToDelete(childToDelete: FiberNode[], unMountFiber: FiberNode) {
+
+  //1. 找到第一个root host节点
+  let lastOneNode = childToDelete[childToDelete.length - 1]; //记录最后一个节点
+
+  if (!lastOneNode) { //最后一个节点不存在, 代表当前还没有记录过的要删除节点
+    childToDelete.push(unMountFiber)
+  } else {  //最后一个节点存在,  代表unMountFiber不是第一个节点, 就要判断一下是不是它的兄弟节点
+
+    let node = lastOneNode.sibling; //获取兄弟节点
+    while (node == null) {
+      if (unMountFiber === node) {
+        childToDelete.push(unMountFiber)
+      }
+      node = node!.sibling;
+    }
+
+
+  }
+
+
+  //2. 每找到一个host节点, 判断下这个节点是不是第一步中找到那个节点的兄弟节点, 只要是兄弟节点就代表跟它同级, 那么我们就可以将这个同级记得记录一下
+
+}
+
 //删除节点的提交阶段
 function commitDeletion(childToDelete: FiberNode) {
 
-  let rootHostNode: FiberNode | null = null;  //定义需要删除的子树的根节点
+  const rootChildToDelete: FiberNode[] = [];  //定义需要删除的子树的根节点
 
   //递归子树
   commitNestedComponent(childToDelete, (unMountFiber) => {
     switch (unMountFiber.tag) {
       case HostComponent:
-        if (rootHostNode == null) {
-          rootHostNode = unMountFiber;
-        }
+        recordHostChildrenToDelete(rootChildToDelete, unMountFiber)
         //TODO 解绑ref
         return
 
       case HostText:
-        if (rootHostNode == null) {
-          rootHostNode = unMountFiber;
-        }
+        recordHostChildrenToDelete(rootChildToDelete, unMountFiber)
         return
       case FunctionComponent:
         //TODO useEffect unmount流程
@@ -107,9 +129,12 @@ function commitDeletion(childToDelete: FiberNode) {
   })
 
   //移除rootHostNode的DOM的操作
-  if (rootHostNode !== null) {
+  if (rootChildToDelete.length) {
     const hostParent = getHostParent(childToDelete);  //获取父节点
-    removeChild((rootHostNode as FiberNode).stateNode, hostParent!)
+    rootChildToDelete.forEach((node) => {
+      removeChild(node.stateNode, hostParent!)
+    })
+
   }
 
   //重置操作

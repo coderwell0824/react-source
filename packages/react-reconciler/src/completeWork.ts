@@ -1,6 +1,6 @@
 import { Container, appendInitalChild, createInstance, createTextInstance } from "hostConfig";
 import { FiberNode } from "./fiber";
-import { FunctionComponent, HostComponent, HostRoot, HostText } from "./workTags";
+import { Fragment, FunctionComponent, HostComponent, HostRoot, HostText } from "./workTags";
 import { NoFlags, Update } from "./fiberFlags";
 import { updateFiberProps } from "react-dom/src/SyntheticEvent";
 
@@ -50,13 +50,10 @@ export const completeWork = (wip: FiberNode) => {
       bubbleProperties(wip);
       return null;
     case HostRoot:
-      bubbleProperties(wip);
-      return null;
-
+    case Fragment:
     case FunctionComponent:
       bubbleProperties(wip);
       return null;
-
     default:
       if (__DEV__) {
         console.error("未实现的completeWork情况")
@@ -96,7 +93,6 @@ function appendAllChildren(parent: Container, wip: FiberNode) {
 function bubbleProperties(wip: FiberNode) {
   let subtreeFlags = NoFlags;
   let child = wip.child;
-
 
   while (child !== null) {
 

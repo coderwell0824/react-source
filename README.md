@@ -450,3 +450,62 @@ parent.insertBefore需要找到目标兄弟Host节点, 要考虑两个因素:
 不足:
 
 1.  不支持数组与Fragement
+
+---
+
+第13课 实现Fragment
+
+为了提高组件结构灵活性, 需要实现Fragment, 具体来说, 需要区分几种情况:
+
+1. Fragment包裹其他组件
+   type为Fragment的ReactElement, 对单一节点的Diff需要考虑Fragment情况
+2. Fragment与其他组件同级
+   children为数组类型, 则进入reconcileChildrenArray方法, 数组中的某一项为Fragment, 所以需要增加[type为Fragment的ReactElement的判断],
+   同时beginWork需要增加Fragment类型的判断
+3. 数组形式的Fragment
+   children为数组类型, 则进入reconcileChildrenArray方法, 数组中的某一项为数组, 所以需要增加[数组类型的判断]
+
+Fragment对ChildDeletion的影响
+childDeletion删除DOM的逻辑:
+
+1. 找到子树的根Host节点
+2. 找到子树对应的父级Host节点
+3. 从父级Host节点中删除子树根Host节点
+
+考虑删除p节点情况:
+
+<div>
+   <p>xxxx</p>
+</div>
+考虑删除Fragment后, 子树的根Host节点可能存在多个:
+<div>
+   <>
+   <p>11111</p>
+   <p>222222</p>
+   </>
+</div>
+
+对React的影响
+React包需要导出Fragment, 用于JSX转换引入Fragment类型
+
+---
+
+第14课 实现同步调度流程
+更新到底是同步还是异步的?
+当前的现状:
+
+1. 从触发更新到render, 再到commit都是同步的
+2. 多次触发更新会重复多次更新流程
+
+可以改进的地方: 多次触发更新, 只进行一次更新流程
+[Batched Updates(批处理)]--多次触发更新, 只进行一次更新流程
+将多次更新合并为一次, 理念上有点类似防抖, 节流, 我们需要考虑合并的时机是:
+
+1. 宏任务
+2. 微任务
+
+用三款框架实现Batched Updates, 打印结果不同, 结论: React批处理的时机既有宏任务, 也有微任务, 本节课我们来实现[微任务的批处理]
+React是并发更新时(startTransition)使用的是宏任务, Vue和Selvte是微任务, React默认是微任务
+
+新增调度阶段
+即然我们需要[多次触发更新, 只进行一次更新流程],意味着我们要将更新合并, 所以在需要在render阶段和commit阶段的基础上增加schedule阶段(调度阶段)

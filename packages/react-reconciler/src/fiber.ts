@@ -1,5 +1,5 @@
 import { Props, Key, Ref, ReactElementType } from "shared/ReactTypes";
-import { FunctionComponent, HostComponent, WorkTag } from "./workTags";
+import { Fragment, FunctionComponent, HostComponent, WorkTag } from "./workTags";
 import { Flags, NoFlags } from "./fiberFlags";
 import { Container } from "hostConfig";
 
@@ -29,7 +29,7 @@ export class FiberNode {
 	//pendingProps为需要改变的props, key为元素上的key
 	constructor(tag: WorkTag, pendingProps: Props, key: Key) {
 		this.tag = tag;
-		this.key = key;
+		this.key = key || null;
 		this.stateNode = null;
 		this.type = null;
 
@@ -102,6 +102,7 @@ export const createWorkInProgress = (current: FiberNode, pendingProps: Props): F
 	return wip;
 }
 
+//创建ReactElement元素
 export function createFiberFromElement(element: ReactElementType): FiberNode {
 
 	const { type, key, props } = element;
@@ -116,4 +117,10 @@ export function createFiberFromElement(element: ReactElementType): FiberNode {
 	const fiber = new FiberNode(fiberTag, props, key);
 	fiber.type = type
 	return fiber;
+}
+
+//创建ReactFragment元素
+export function createFiberFromFragment(elements: any[], key: Key) {
+
+	return new FiberNode(Fragment, elements, key);  //创建Fragment类型的节点
 }
