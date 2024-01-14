@@ -4,10 +4,13 @@ import internals from "shared/internals";
 import { UpdateQueue, createUpdate, createUpdateQueue, enqueueUpdate, processUpdateQueue } from "./updateQueue";
 import { Action } from "shared/ReactTypes";
 import { scheduleUpdateFiber } from "./workLoop";
+import { Lane, NoLane, requestUpdateLane } from "./fiberLanes";
 
 let currentlyRenderingFiber: FiberNode | null = null;  //当前正在渲染的fiber
 let workInProgressHook: Hook | null = null//当前正在处理的hook
 let currentHook: Hook | null = null//当前update时正在处理的hook
+let currnetRenderLane: Lane = NoLane
+
 const { curentDispatcher } = internals;
 
 //定义Hook结构
@@ -19,11 +22,12 @@ interface Hook {
 
 
 //渲染hooks组件
-export function renderWithHooks(wip: FiberNode) {
+export function renderWithHooks(wip: FiberNode, renderLane: Lane) {
 
   //currentlyRenderingFiber赋值操作
   currentlyRenderingFiber = wip;
   wip.memoizedState = null; //赋值为null的原因是在接下来的hooks操作时会创建链表
+  currnetRenderLane = renderLane; //当前正在调度的优先级
 
 
   const current = wip.alternate; //取出当前的Fiber树
@@ -44,6 +48,7 @@ export function renderWithHooks(wip: FiberNode) {
   currentlyRenderingFiber = null;
   workInProgressHook = null;
   currentHook = null;
+  currnetRenderLane = NoLane;
 
   return children
 }
@@ -90,9 +95,10 @@ function updateState<State>(): [State, Dispatch<State>] {
   //2. 计算新state的逻辑
   const queue = hook.updateQueue as UpdateQueue<State>;//新state保存的位置
   const pending = queue.shared.pending; //获取最新的state
+  queue.shared.pending = null; //将上一次的update置空
 
   if (pending != null) {
-    const { memoizedState } = processUpdateQueue(hook.memoizedState, pending);
+    const { memoizedState } = processUpdateQueue(hook.memoizedState, pending, currnetRenderLane);
     hook.memoizedState = memoizedState;
   }
 
@@ -102,9 +108,10 @@ function updateState<State>(): [State, Dispatch<State>] {
 //dispatchSetState: useState触发的dispatch    fiber: 当前的fiber, updateQueue: 当前hook的更新队列, action: 更新的操作
 function dispatchSetState<State>(fiber: FiberNode, updateQueue: UpdateQueue<State>, action: Action<State>) {
 
-  const update = createUpdate(action);  //创建一个update
+  const lane = requestUpdateLane()  //创建lane优先级
+  const update = createUpdate(action, lane);  //创建一个update
   enqueueUpdate(updateQueue, update); //将update插入到updateQueue中
-  scheduleUpdateFiber(fiber);   //触发更新流程
+  scheduleUpdateFiber(fiber, lane);   //触发更新流程
 }
 
 //获取在mount阶段时正在处理的hook

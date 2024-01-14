@@ -96,7 +96,6 @@ function recordHostChildrenToDelete(childToDelete: FiberNode[], unMountFiber: Fi
 
   }
 
-
   //2. 每找到一个host节点, 判断下这个节点是不是第一步中找到那个节点的兄弟节点, 只要是兄弟节点就代表跟它同级, 那么我们就可以将这个同级记得记录一下
 
 }

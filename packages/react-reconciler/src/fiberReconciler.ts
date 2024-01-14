@@ -4,6 +4,7 @@ import { HostRoot } from "./workTags"
 import { UpdateQueue, createUpdate, createUpdateQueue, enqueueUpdate } from "./updateQueue";
 import { ReactElementType } from "shared/ReactTypes";
 import { scheduleUpdateFiber } from "./workLoop";
+import { requestUpdateLane } from "./fiberLanes";
 
 //不依赖数组环境
 export function createContainer(container: Container) {
@@ -19,11 +20,11 @@ export function updateContainer(element: ReactElementType | null, root: FiberRoo
 
   console.log(element, root, "dddd")
   const hostRootFiber = root.current;
-
-  const update = createUpdate<ReactElementType | null>(element);
+  const lane = requestUpdateLane()  //创建lane优先级
+  const update = createUpdate<ReactElementType | null>(element, lane);  //创建Update结构
 
   enqueueUpdate(hostRootFiber.updateQueue as UpdateQueue<ReactElementType | null>, update)
 
-  scheduleUpdateFiber(hostRootFiber)
+  scheduleUpdateFiber(hostRootFiber, lane)
   return element;
 }
