@@ -563,3 +563,66 @@ commit阶段的改造
 1. effect数据结构
 
 2. effect的工作流程如何接入现有流程
+
+数据结构需要考虑:
+
+1. 不同effect可以共用一个机制: useEffect, useLayoutEffect, useInsertionEffect
+2. 需要能保存依赖
+3. 需要能保存create回调
+4. 需要能保存destory回调
+5. 需要能区分是否需要create回调: mount时, 依赖变化时
+
+注意区分本节课新增的3个flag:
+
+1. 对于fiber, 新增PassiveEffect, 代表[当前fiber本次更新存在副作用]
+2. 对于effect hook, Passive代表[useEffect对应effect]
+3. 对于effect hook, HookHasEffect代表当前effect本次更新产生存在的副作用
+
+为了方便使用, 最好和其他effect链接成链表render时重置effect链表
+
+effect的执行流程:
+render阶段中, 在FC fiberNode中发现存在副作用, commit阶段中, 调度副作用, 收集回调, 执行副作用
+
+调度副作用:
+调度需要使用Scheduler(调度器), 调度器也属于React项目下的模板, 在本课程中, 我们不会实现调度器, 但会教如何使用它
+pnpm i -w scheduler
+pnpm i -D -w @types/scheduler
+
+收集回调
+回调包括两类:
+
+1. create回调
+2. destory回调
+
+这意味着我们需要收集两类回调:
+
+1.  unmount时执行的destory回调
+2.  update时执行的create回调
+
+执行副作用
+本次更新的任何create回调都必须在所有上一次更新的destory回调执行完后再执行
+整体执行流程包括:
+
+1. 遍历effect
+2. 首先触发所有unmount effect, 且对于某个fiber, 如果触发了unmount destory, 本次更新不会再触发update create
+3. 触发所有上次更新的destory
+4. 触发所有这次更新的create
+
+mount, update时的区别
+
+1. mount时: 一定标记PassiveEffect
+2. update时: deps变化时标记PassiveEffect
+
+---
+
+第16课 实现noop-renderer
+到目前为止我们实现的模块:
+核心模块: Reconciler
+公用方法: React
+
+浏览器宿主环境: ReactDOM
+当前项目的问题: 测试用例太单薄, 无法照顾到项目的边界情况, 但课程时长有限, 无法覆盖所有用例
+
+解决方法: 构建成熟的React测试环境, 实现测试工具, 自行按需跑通用例
+
+为了测试Reconciler, 我们需要构建宿主环境无关的渲染器, 这就是react-noop-renderer

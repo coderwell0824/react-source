@@ -2,14 +2,18 @@ import { scheduleMicroTask } from "hostConfig";
 import { beginWork } from "./beginWork";
 import { commitMutationEffects } from "./commitWork";
 import { completeWork } from "./completeWork";
-import { FiberNode, FiberRootNode, createWorkInProgress, markRootFinished } from "./fiber";
-import { MutationMark, NoFlags } from "./fiberFlags";
+import { FiberNode, FiberRootNode, PendingPassiveEffect, createWorkInProgress, markRootFinished } from "./fiber";
+import { Flags, MutationMark, NoFlags, PassiveMask } from "./fiberFlags";
 import { Lane, NoLane, SyncLane, getHighestPriorityLane, mergeLanes } from "./fiberLanes";
 import { flushSyncCallbacks, scheduleSyncCallback } from "./syncTaskQueue";
 import { HostRoot } from "./workTags";
+import { unstable_scheduleCallback as scheduleCallback, unstable_NormalPriority as NormalPriority } from "scheduler";
+import { Effect } from "./fiberHook";
+import { HookHasEffect, Passive } from "./hookEffectTags";
 
 let workInProgress: FiberNode | null = null;
 let wipRootRenderLane: Lane = NoLane;  //保存本次更新的lane
+let rootDoesHasPassiveEffects: boolean = false;  //是否执行effect副作用
 
 function prepareFreshStack(root: FiberRootNode, lane: Lane) {
   workInProgress = createWorkInProgress(root.current, {});
@@ -32,13 +36,11 @@ function ensureRootIsScheduled(root: FiberRootNode) {
   if (updateLane == NoLane) {
     return
   }
-
   if (updateLane === SyncLane) {  //同步优先级, 用微任务调度
 
     if (__DEV__) {
       console.log("在微任务中调度,优先级:", updateLane)
     }
-
     //每次更新都会[]中插入一个update
     scheduleSyncCallback(performSyncWorkOnRoot.bind(null, root, updateLane))
     scheduleMicroTask(flushSyncCallbacks)
@@ -105,6 +107,8 @@ function performSyncWorkOnRoot(root: FiberRootNode, lane: Lane) {
 }
 //lane调度的时候, render阶段和commit阶段只执行一次
 
+//优先执行子节点的useEffect
+
 function commitRoot(root: FiberRootNode) {  //root为根节点
   const finishedWork = root.finishedWork; //获取finishedWork
   if (finishedWork === null) {  //如果finishedWork为null时, 该commit阶段是不存在的
@@ -122,6 +126,21 @@ function commitRoot(root: FiberRootNode) {  //root为根节点
   root.finishedWork = null;
   root.finishedLane = NoLane;
   markRootFinished(root, lane);  //从根节点中移除lane
+
+  //存在函数组件需要执行useEffect回调
+  if ((finishedWork.flags & PassiveMask) != NoFlags || (finishedWork.subtreeFlags & PassiveMask) !== NoFlags) {
+
+    if (!rootDoesHasPassiveEffects) {
+      rootDoesHasPassiveEffects = true;
+      //调度副作用
+      scheduleCallback(NormalPriority, () => {
+        //执行副作用
+        flushPassiveEffects(root.pendingPassiveEffects)
+        return;
+      })
+    }
+  }
+
 
   //判断是否存在3个子阶段需要执行的操作
   //需要判断两项: root本身下的flags和subtreeFlags
@@ -143,7 +162,7 @@ function commitRoot(root: FiberRootNode) {  //root为根节点
     //赋值的话就是可以实现fiber树的切换
 
     //执行commitMutationEffects
-    commitMutationEffects(finishedWork);
+    commitMutationEffects(finishedWork, root);
     root.current = finishedWork
 
     //layout阶段
@@ -152,7 +171,79 @@ function commitRoot(root: FiberRootNode) {  //root为根节点
     root.current = finishedWork
   }
 
+  //重置rootDoesHasPassiveEffects
+  rootDoesHasPassiveEffects = false;
+  ensureRootIsScheduled(root)
 }
+
+//副作用函数
+function flushPassiveEffects(pendingPassiveEffects: PendingPassiveEffect) {
+
+  //先遍历执行destory函数
+  pendingPassiveEffects.unmount.forEach((effect) => {
+    commitHookEffectsListUnmount(Passive, effect)
+  })
+  pendingPassiveEffects.unmount = [];
+
+  //触发上一次更新的destroy
+  pendingPassiveEffects.update.forEach((effect) => {
+    commitHookEffectsListDestory(Passive | HookHasEffect, effect); //要同时标记Passive和HookHasEffect标记
+  })
+
+  //触发本次更新的create
+  pendingPassiveEffects.update.forEach((effect) => {
+    commitHookEffectsListCreate(Passive | HookHasEffect, effect); //要同时标记Passive和HookHasEffect标记
+  })
+  pendingPassiveEffects.update = [];
+  flushSyncCallbacks()
+}
+
+//遍历efffect链表
+function commitHookEffectsList(flags: Flags, lastEffect: Effect, callback: (effect: Effect) => void) {
+  let effect = lastEffect.next as Effect; //获取第一个effect
+
+  do {
+    if ((effect.tag & flags) === flags) {
+      callback(effect)
+    }
+    effect = effect.next as Effect;
+  } while (effect != lastEffect.next)
+}
+
+//destory函数中执行链表
+function commitHookEffectsListDestory(flags: Flags, lastEffect: Effect) {
+  commitHookEffectsList(flags, lastEffect, (effect) => {
+    const destory = effect.destory; //获取destory函数
+
+    if (typeof destory === "function") {
+      destory()
+    }
+  })
+}
+//destory函数中执行链表
+function commitHookEffectsListCreate(flags: Flags, lastEffect: Effect) {
+  commitHookEffectsList(flags, lastEffect, (effect) => {
+    const create = effect.create; //获取destory函数
+
+    if (typeof create === "function") {
+      effect.destory = create(); //将create函数返回值赋值给destory
+    }
+  })
+}
+
+function commitHookEffectsListUnmount(flags: Flags, lastEffect: Effect) {
+  commitHookEffectsList(flags, lastEffect, (effect) => {
+    const destory = effect.destory; //获取destory函数
+
+    if (typeof destory === "function") {
+      destory()
+    }
+    //执行完destory函数后, 组件已经被卸载, 需要移除后续的hook
+    effect.tag &= ~HookHasEffect
+  })
+}
+
+
 
 
 

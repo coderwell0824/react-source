@@ -5,6 +5,8 @@ import { UpdateQueue, createUpdate, createUpdateQueue, enqueueUpdate, processUpd
 import { Action } from "shared/ReactTypes";
 import { scheduleUpdateFiber } from "./workLoop";
 import { Lane, NoLane, requestUpdateLane } from "./fiberLanes";
+import { Flags, PassiveEffect } from "./fiberFlags";
+import { HookHasEffect, Passive } from "./hookEffectTags";
 
 let currentlyRenderingFiber: FiberNode | null = null;  //当前正在渲染的fiber
 let workInProgressHook: Hook | null = null//当前正在处理的hook
@@ -20,13 +22,34 @@ interface Hook {
   next: Hook | null     //指向下一个hook
 }
 
+//effect数据结构
+export interface Effect {
+  tag: Flags;
+  create: EffectCallback | void; //立即执行函数
+  destory: EffectCallback | void; //销毁执行函数
+  deps: EffectDeps,
+  next: Effect | null //指向下一个useEffect
+}
+
+//函数式组件的updateQueue
+export interface FcUpdateQueue<State> extends UpdateQueue<State> {
+  lastEffect: Effect | null; //指向effect链表中的最后一个
+}
+
+
+
+type EffectCallback = () => void;
+type EffectDeps = any[] | null;
+
 
 //渲染hooks组件
 export function renderWithHooks(wip: FiberNode, renderLane: Lane) {
 
   //currentlyRenderingFiber赋值操作
   currentlyRenderingFiber = wip;
-  wip.memoizedState = null; //赋值为null的原因是在接下来的hooks操作时会创建链表
+  wip.memoizedState = null; //赋值为null的原因是在接下来的hooks操作时会创建链表, 重置hooks链表
+  //重置effect链表
+  wip.updateQueue = null;
   currnetRenderLane = renderLane; //当前正在调度的优先级
 
 
@@ -55,12 +78,110 @@ export function renderWithHooks(wip: FiberNode, renderLane: Lane) {
 
 const HooksDispatcherOnMount: Dispatcher = {
   useState: mountState,
-  useEffct: "1111",
+  useEffect: mountEffect,
 }
 const HooksDispatcherOnUpdate: Dispatcher = {
   useState: updateState,
-  useEffct: "1111",
+  useEffect: updateEffect,
 }
+
+//mount时useEffect的实现
+function mountEffect(create: EffectCallback | void, deps: EffectDeps | void) {
+  //1. 找到当前useEffect对应的hook数据
+  const hook = mountWorkInProgressHook()
+  const nextDeps = deps == undefined ? null : deps;
+  (currentlyRenderingFiber as FiberNode).flags |= PassiveEffect; //增加PassiveEffect
+  hook.memoizedState = pushEffect(Passive | HookHasEffect, create, undefined, nextDeps)
+}
+
+//update时useEffect的实现
+function updateEffect(create: EffectCallback | void, deps: EffectDeps | void) {
+  //1. 找到当前更新时对应的hook链表
+  const hook = updateWorkInProgressHook()
+  const nextDeps = deps == undefined ? null : deps;
+  let destory: EffectCallback | void;
+
+  if (currentHook != null) {
+    const prevEffect = currentHook.memoizedState as Effect;
+    destory = prevEffect.destory;
+
+    if (nextDeps != null) {
+      //浅比较依赖
+      const prevDeps = prevEffect.deps;
+      if (areHookInputsEqual(nextDeps, prevDeps)) {
+        hook.memoizedState = pushEffect(Passive, create, destory, nextDeps);
+        return
+      }
+    }
+    //依赖浅比较后不相等
+    (currentlyRenderingFiber as FiberNode).flags |= PassiveEffect; //增加PassiveEffect
+    hook.memoizedState = pushEffect(Passive | HookHasEffect, create, destory, nextDeps)
+
+  }
+}
+
+//浅比较依赖的数组
+function areHookInputsEqual(nextDeps: EffectDeps, prevDeps: EffectDeps): boolean {
+  if (prevDeps == null || nextDeps == null) {
+    return false;
+  }
+
+  for (let i = 0; i < prevDeps.length && i < nextDeps.length; i++) {
+    if (Object.is(prevDeps[i], nextDeps[i])) {
+      continue
+    };
+    return false;
+  }
+  return true
+}
+
+
+//useEffect会和其他的useEffect形成环状链表
+function pushEffect(hookFlags: Flags, create: EffectCallback | void, destory: EffectCallback | void, deps: EffectDeps): Effect {
+  let effect: Effect = {
+    tag: hookFlags,
+    create,
+    destory,
+    deps,
+    next: null
+  }
+
+  const fiber = currentlyRenderingFiber as FiberNode;
+  const updateQueue = fiber.updateQueue as FcUpdateQueue<any>;
+
+  if (updateQueue === null) { //插入第一个effect
+    const updateQueue = createFcUpdateQueue();
+    fiber.updateQueue = updateQueue;
+    effect.next = effect;
+    updateQueue.lastEffect = effect;
+  } else {
+    //插入后续的effect
+    const lastEffect = updateQueue.lastEffect;
+    if (lastEffect === null) {
+      effect.next = effect;
+      updateQueue.lastEffect = effect;
+    } else {
+      const firstEffect = lastEffect.next;
+      lastEffect.next = effect;
+      effect.next = firstEffect;
+      updateQueue.lastEffect = effect;
+    }
+  }
+
+  return effect;
+
+}
+//创建函数式组件的updateQueue
+function createFcUpdateQueue<State>() {
+  const updateQueue = createUpdateQueue<State>() as FcUpdateQueue<State>;
+  updateQueue.lastEffect = null;
+  return updateQueue
+}
+
+
+
+
+
 
 //mount时useState的实现
 function mountState<State>(initialState: (() => State) | State): [State, Dispatch<State>] {

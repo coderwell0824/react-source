@@ -8,7 +8,7 @@ export type Dispatch<State> = (action: Action<State>) => void
 //定义Dispatcher
 export interface Dispatcher {
   useState: <T>(initialState: (() => T) | T) => [T, Dispatch<T>];
-  useEffct: any
+  useEffect: (callback: () => void | void, deps: any[] | void) => void;
 }
 
 //共享的hooks集合
