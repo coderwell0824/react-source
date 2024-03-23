@@ -626,3 +626,15 @@ mount, update时的区别
 解决方法: 构建成熟的React测试环境, 实现测试工具, 自行按需跑通用例
 
 为了测试Reconciler, 我们需要构建宿主环境无关的渲染器, 这就是react-noop-renderer
+
+Noop-Renderer的实现
+包括两部分:
+
+1. hostConfig
+2. 工厂函数(类似ReactDOM)
+
+在ReactDOM宿主环境的原生节点是DOM节点, 在Noop-Renderer宿主环境包括三类节点:
+
+1. Instance( HostComponent )
+2. TextInstance( HostText )
+3. COntianer( HostRoot)
